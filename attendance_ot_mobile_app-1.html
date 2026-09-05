@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance & OT</title>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8;color:#222}
+header{padding:18px;text-align:center;background:#1f2937;color:#fff;font-weight:700;font-size:20px}
+.container{max-width:520px;margin:auto;padding:14px}
+.card{background:#fff;border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 2px 8px #0001}
+h2{font-size:18px;margin:0 0 12px}
+label{display:block;font-size:13px;margin-top:10px;font-weight:700}
+input,select,button{width:100%;box-sizing:border-box;padding:12px;margin-top:5px;border:1px solid #ddd;border-radius:10px;font-size:16px}
+button{border:0;background:#2563eb;color:white;font-weight:700;margin-top:14px}
+button.secondary{background:#475569}
+button.danger{background:#dc2626}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.tabs{display:flex;gap:6px;overflow:auto;margin:10px 0}.tabs button{margin:0;white-space:nowrap;background:#334155}
+.small{font-size:12px;color:#64748b}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
+.badge{padding:4px 8px;border-radius:12px;background:#eef2ff;font-size:12px}
+</style>
+</head>
+<body>
+<header>📱 Attendance & OT Management</header>
+<div class="container">
+
+<div class="tabs">
+<button onclick="show('attendance')">Attendance</button>
+<button onclick="show('employees')">Employees</button>
+<button onclick="show('report')">Monthly Report</button>
+</div>
+
+<section id="attendance" class="page">
+<div class="card">
+<h2>📝 Daily Attendance</h2>
+<label>Date</label><input type="date" id="date">
+<label>Workplace</label>
+<select id="workplace"><option>Madurai</option><option>Hostel</option></select>
+<label>Employee</label><select id="employee"></select>
+<label>Shift</label>
+<select id="shift"><option>Morning</option><option>Afternoon</option><option>Night</option></select>
+<label>Status</label>
+<select id="status"><option>Present</option><option>Absent</option></select>
+<label>OT Employee Name (OT வந்தவரின் பெயர்)</label>
+<input id="otName" placeholder="OT வந்த Employee name type பண்ணவும்">
+<button onclick="saveAttendance()">💾 Save Attendance</button>
+<p class="small">OT hours வேண்டாம் — OT வந்த Employee பெயர் மட்டும் type பண்ணலாம்.</p>
+</div>
+<div class="card"><h2>Today's Records</h2><div id="todayRecords"></div></div>
+</section>
+
+<section id="employees" class="page" style="display:none">
+<div class="card">
+<h2>👥 Add Employee</h2>
+<input id="newEmployee" placeholder="Employee name">
+<button onclick="addEmployee()">➕ Add Employee</button>
+</div>
+<div class="card"><h2>Employee List</h2><div id="employeeList"></div></div>
+</section>
+
+<section id="report" class="page" style="display:none">
+<div class="card">
+<h2>📊 Monthly Report</h2>
+<label>Select Month</label><input type="month" id="month">
+<button onclick="renderReport()">View Report</button>
+<button class="secondary" onclick="exportCSV()">📥 Download Excel (CSV)</button>
+<div id="reportTable"></div>
+</div>
+</section>
+</div>
+
+<script>
+const defaults=["Suresh","Murugan","Devaraj","Ulagalammal","Samuthrakani","Mari Selvam","Sangitha","Muthiya","Muniyammal","Motaiammal"];
+let employees=JSON.parse(localStorage.getItem("employees")||"null")||defaults;
+let records=JSON.parse(localStorage.getItem("attendanceRecords")||"[]");
+
+const $=id=>document.getElementById(id);
+$("date").value=new Date().toISOString().slice(0,10);
+$("month").value=new Date().toISOString().slice(0,7);
+
+function saveAll(){localStorage.setItem("employees",JSON.stringify(employees));localStorage.setItem("attendanceRecords",JSON.stringify(records));}
+function refreshEmployees(){
+ $("employee").innerHTML=employees.map(x=>`<option>${x}</option>`).join("");
+ $("employeeList").innerHTML=employees.map((x,i)=>`<div class="row" style="align-items:center;margin:8px 0"><span class="badge">${x}</span><button class="danger" style="width:auto;margin:0" onclick="removeEmployee(${i})">Remove</button></div>`).join("");
+}
+function addEmployee(){let n=$("newEmployee").value.trim();if(!n)return;if(employees.includes(n))return alert("Employee already exists");employees.push(n);$("newEmployee").value="";saveAll();refreshEmployees();}
+function removeEmployee(i){if(confirm("Remove "+employees[i]+"?")){employees.splice(i,1);saveAll();refreshEmployees();}}
+function saveAttendance(){
+ let r={date:$("date").value,workplace:$("workplace").value,employee:$("employee").value,shift:$("shift").value,status:$("status").value,otName:$("otName").value.trim()};
+ if(!r.employee)return alert("Add/select employee first");
+ let idx=records.findIndex(x=>x.date===r.date&&x.employee===r.employee&&x.shift===r.shift);
+ if(idx>=0)records[idx]=r; else records.push(r);
+ saveAll();$("otName").value="";renderToday();alert("Saved successfully ✅");
+}
+function renderToday(){
+ let d=$("date").value;
+ let rs=records.filter(r=>r.date===d);
+ $("todayRecords").innerHTML=rs.length?`<table><tr><th>Name</th><th>Shift</th><th>Status</th><th>OT Employee</th></tr>${rs.map(r=>`<tr><td>${r.employee}</td><td>${r.shift}</td><td>${r.status}</td><td>${r.otName||"-"}</td></tr>`).join("")}</table>`:"No records yet";
+}
+function renderReport(){
+ let m=$("month").value;
+ let rs=records.filter(r=>r.date.startsWith(m));
+ let rows=employees.map(name=>{
+   let x=rs.filter(r=>r.employee===name);
+   let days=x.filter(r=>r.status==="Present").length;
+   let otNames=x.map(r=>r.otName).filter(Boolean).join(", ");
+   return {name,days,otNames};
+ });
+ $("reportTable").innerHTML=`<table><tr><th>Employee</th><th>Working Days</th><th>OT Employee Name</th></tr>${rows.map(r=>`<tr><td>${r.name}</td><td>${r.days}</td><td>${r.otNames||"-"}</td></tr>`).join("")}</table>`;
+}
+function exportCSV(){
+ let m=$("month").value, rs=records.filter(r=>r.date.startsWith(m));
+ let csv="Date,Workplace,Employee,Shift,Status,OT Employee Name\n"+rs.map(r=>[r.date,r.workplace,r.employee,r.shift,r.status,r.otName||""].join(",")).join("\n");
+ let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download=`Attendance_${m}.csv`;a.click();
+}
+function show(id){document.querySelectorAll(".page").forEach(x=>x.style.display="none");$(id).style.display="block";if(id==="report")renderReport();}
+refreshEmployees();renderToday();renderReport();
+</script>
+</body>
+</html>
